@@ -9,6 +9,23 @@
       Type = "oneshot";
       WorkingDirectory = "/root/nixos-config";
       ExecStart = "${pkgs.git}/bin/git pull";
+      Environment = "PATH=/run/current-system/sw/bin";
+    };
+  };
+}
+
+
+/*{ config, pkgs, ... }:
+
+{
+  systemd.services.nixos-pull = {
+    description = "Pull latest NixOS config";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      WorkingDirectory = "/root/nixos-config";
+      ExecStart = "${pkgs.git}/bin/git pull";
       ExecStartPost = "${pkgs.systemd}/bin/systemctl start nixos-rebuild";
       Environment = "PATH=/run/current-system/sw/bin";
     };
@@ -27,5 +44,6 @@
       Environment = "PATH=/run/current-system/sw/bin";  
     };
   };
-*/
+
 }
+*/
