@@ -1,4 +1,5 @@
 #!/bin/sh
 cd /root/nixos-config
 git pull
-nixos-rebuild switch --flake /root/nixos-config#atom-c3758
+nix build .#nixosConfigurations.atom-c3758.config.system.build.toplevel
+./result/bin/switch-to-configuration switch
