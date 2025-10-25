@@ -4,7 +4,7 @@ let
   qatlibSrc = super.fetchFromGitHub {
     owner = "intel";
     repo = "qatlib";
-    rev = "8575c0e2b8439d50f343476aed1e1f7bac60bf1d"
+    rev = "8575c0e2b8439d50f343476aed1e1f7bac60bf1d";
     sha256 = "sha256-xAUS1ZEpFVSWg9/jp+oZMxzuEpCcKyBwjwHGGD/ETkg="; 
   };
 in {
@@ -19,13 +19,16 @@ in {
       super.automake
       super.libtool
       super.pkg-config
-    ];
+      super.autoconf-archive 
+      super.nasm
+   ];
 
     buildInputs = [
       super.openssl
-      super.libudev
+      super.udev
       super.libtirpc
-      super.libpci
+      super.pciutils
+      super.numactl.dev      
     ];
 
     configurePhase = ''
