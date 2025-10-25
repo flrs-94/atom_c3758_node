@@ -7,12 +7,8 @@
     after = [ "network-online.target" ];
     serviceConfig = {
       Type = "oneshot";
-      WorkingDirectory = "/root/nixos-config";
-      ExecStart = "${pkgs.git}/bin/git pull";
-      ExecStartPost = "/nix/store/${config.system.build.toplevel}/bin/switch-to-configuration switch";
-#     ExecStartPost = "${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake /root/nixos-config#atom-c3758";
+      ExecStart = "/root/nixos-config/rebuild.sh";
       Environment = "PATH=/run/current-system/sw/bin";
     };
   };
 }
-
