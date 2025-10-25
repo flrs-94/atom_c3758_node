@@ -29,8 +29,13 @@ in {
       super.libtirpc
       super.pciutils
       super.numactl.dev      
+      super.zlib.dev
     ];
 
+    configureFlags = [
+      "--without-systemd"
+    ];
+    
     configurePhase = ''
       ./autogen.sh
       ./configure --prefix=$out
