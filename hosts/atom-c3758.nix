@@ -25,12 +25,14 @@
   ];
 
   # Kernelmodule: VFIO + QAT PF-Treiber für VF-Erzeugung
+  boot.extraModulePackages = [ pkgs.qat-sdk ];
   boot.kernelModules = [
     "vfio"
     "vfio_pci"
     "vfio_iommu_type1"
     "intel_qat"
     "qat_c3xxx"
+    "qat_c3xxxvf"
   ];
 
   # Keine Blacklist nötig – PF-Treiber wird gebraucht
@@ -61,6 +63,7 @@
 
   # Systempakete
   environment.systemPackages = with pkgs; [
+    qat-sdk
     nix-prefetch
     s-tui
     qatlib
@@ -95,37 +98,64 @@
       };
     };
   };
-
-  # SR-IOV VF-Erzeugung nach PF-Initialisierung
   systemd.services.qat-sriov-vfs = {
-    description = "Create 4 SR-IOV VFs for Intel QAT";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "systemd-udevd.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = ''
-        /bin/sh -c '
-          for i in {1..10}; do
-            if [ -e /sys/bus/pci/devices/0000:01:00.0/sriov_totalvfs ]; then
-              echo 4 > /sys/bus/pci/devices/0000:01:00.0/sriov_numvfs && exit 0
-            fi
-            sleep 1
-          done
-          echo "QAT device not ready for SR-IOV" >&2
-          exit 1
-        '
-      '';
-      RemainAfterExit = true;
-      CapabilityBoundingSet = [ "CAP_SYS_ADMIN" ];
-      AmbientCapabilities = [ "CAP_SYS_ADMIN" ];
-      PrivateDevices = false;
-      ProtectKernelModules = false;
-      ProtectControlGroups = false;
-      ProtectKernelTunables = false;
-      SystemCallFilter = [ "~write" ];
-    };
+  description = "Create 4 SR-IOV VFs for Intel QAT";
+  wantedBy = [ "multi-user.target" ];
+  after = [ "systemd-udevd.service" ];
+  serviceConfig = {
+    Type = "oneshot";
+    ExecStart = ''
+      /bin/sh -c '
+        for i in $(seq 1 10); do
+          if [ -e /sys/bus/pci/devices/0000:01:00.0/sriov_totalvfs ]; then
+            echo 4 > /sys/bus/pci/devices/0000:01:00.0/sriov_numvfs && exit 0
+          fi
+          sleep 1
+        done
+        echo "QAT device not ready for SR-IOV" >&2
+        exit 1
+      '
+    '';
+    RemainAfterExit = true;
+    CapabilityBoundingSet = [ "CAP_SYS_ADMIN" ];
+    AmbientCapabilities = [ "CAP_SYS_ADMIN" ];
+    PrivateDevices = false;
+    ProtectKernelModules = false;
+    ProtectControlGroups = false;
+    ProtectKernelTunables = false;
+    SystemCallFilter = [ "~write" ];
   };
+};
+ # SR-IOV VF-Erzeugung nach PF-Initialisierung
 
+
+/*  systemd.services.qat-sriov-vfs = {
+  description = "Create 4 SR-IOV VFs for Intel QAT";
+  wantedBy = [ "multi-user.target" ];
+  after = [ "systemd-udevd.service" ];
+  serviceConfig = {
+    Type = "oneshot";
+    ExecStart = ''/bin/sh -c '
+      for i in {1..10}; do
+        if [ -e /sys/bus/pci/devices/0000:01:00.0/sriov_totalvfs ]; then
+          echo 4 > /sys/bus/pci/devices/0000:01:00.0/sriov_numvfs && exit 0
+        fi
+        sleep 1
+      done
+      echo "QAT device not ready for SR-IOV" >&2
+      exit 1
+    '';
+    RemainAfterExit = true;
+    CapabilityBoundingSet = [ "CAP_SYS_ADMIN" ];
+    AmbientCapabilities = [ "CAP_SYS_ADMIN" ];
+    PrivateDevices = false;
+    ProtectKernelModules = false;
+    ProtectControlGroups = false;
+    ProtectKernelTunables = false;
+    SystemCallFilter = [ "~write" ];
+  };
+};
+*/
   # VF-Treiberbindung an vfio-pci
   systemd.services.qat-bind-vfs = {
     description = "Bind QAT VFs to vfio-pci";
@@ -181,7 +211,8 @@
 }
 
 
-/*{ config, pkgs, ... }:
+/*
+{ config, pkgs, ... }:
 
 {
 # Boot und Kernel Parameter
@@ -349,7 +380,7 @@
        RemainAfterExit = "yes";
      };
    };
-*/
+
    services.tlp = {
      enable = true;
      settings = {
@@ -382,3 +413,4 @@
 
 }
 
+*/

@@ -12,6 +12,7 @@
         system = "x86_64-linux";
         overlays = [
           (import ./overlays/qatlib.nix)
+	  (import ./overlays/qat-sdk.nix)
         ];
       };
       modules = [
