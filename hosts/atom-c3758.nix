@@ -2,25 +2,34 @@
 
 {
 # Boot und Kernel Parameter
-  system.stateVersion = "25.11";
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  boot.kernelParams = [
+   system.stateVersion = "25.11";
+   boot.loader.systemd-boot.enable = true;
+   boot.loader.efi.canTouchEfiVariables = true;
+   boot.kernelParams = [
  	"intel_iommu=on"
 	"iommu=pt"
+	"intel_idle.max_cstate=0"
+        "processor.max_cstate=1"
   # optional direktes VFIO-Binding (Vendor:Device IDs)
-  # "vfio-pci.ids=8086:10fb,8086:10ed"
-  ];
-  boot.initrd.kernelModules = [ 
+	"vfio-pci.ids=8086:19e2"
+   ];
+   boot.initrd.kernelModules = [ 
+	"vfio" 
+	"vfio_pci" 
+	"vfio_iommu_type1"
+   ];
+   boot.kernelModules = [
 	"vfio"
 	"vfio_pci"
 	"vfio_iommu_type1"
-	"intel_qat"
-	"qat_c3xxx"
-  ];
-  systemd.tmpfiles.rules = [
+   ];
+   boot.blacklistedKernelModules = [ 
+	"intel_qat" 
+	"qat_c3xxx" 
+   ];
+   systemd.tmpfiles.rules = [
     "w /sys/bus/pci/devices/0000\:01\:00.0/sriov_numvfs - - - - 4"
-  ];
+   ];
 
 # Hostname & Zeitzone
   networking.hostName = "atom-c3758";
@@ -46,6 +55,7 @@
 
 # Systempakete
   environment.systemPackages = with pkgs; [
+#	driverctl
 	nix-prefetch
 	s-tui
 	qatlib
@@ -80,15 +90,90 @@
      };
    };
  };
-systemd.services.qat-sriov-vfs = {
+   systemd.services.qat-sriov-vfs = {
   description = "Create 4 SR-IOV VFs for Intel QAT";
   wantedBy = [ "multi-user.target" ];
+  after = [ "systemd-udevd.service" ];
   serviceConfig = {
     Type = "oneshot";
-    ExecStart = "/bin/sh -c 'echo 4 > /sys/bus/pci/devices/0000\:01\:00.0/sriov_totalvfs'";
-    RemainAfterExit = "yes";
+    ExecStart = ''
+      /bin/sh -c '
+        for i in {1..10}; do
+          if [ -e /sys/bus/pci/devices/0000:01:00.0/sriov_totalvfs ]; then
+            echo 4 > /sys/bus/pci/devices/0000:01:00.0/sriov_numvfs && exit 0
+          fi
+          sleep 1
+        done
+        echo "QAT device not ready for SR-IOV" >&2
+        exit 1
+      '
+    '';
+    RemainAfterExit = true;
+    CapabilityBoundingSet = [ "CAP_SYS_ADMIN" ];
+    AmbientCapabilities = [ "CAP_SYS_ADMIN" ];
+    PrivateDevices = false;
+    ProtectKernelModules = false;
+    ProtectControlGroups = false;
+    ProtectKernelTunables = false;
+    SystemCallFilter = [ "~write" ];
   };
 };
+   systemd.services.qat-bind-vfs = {
+  description = "Bind QAT VFs to vfio-pci";
+  wantedBy = [ "multi-user.target" ];
+  after = [ "qat-sriov-vfs.service" ];
+  serviceConfig = {
+    Type = "oneshot";
+    ExecStart = ''
+      /bin/sh -c '
+        echo vfio-pci > /sys/bus/pci/devices/0000:01:00.1/driver_override
+        echo vfio-pci > /sys/bus/pci/devices/0000:01:00.2/driver_override
+        echo vfio-pci > /sys/bus/pci/devices/0000:01:00.3/driver_override
+        echo vfio-pci > /sys/bus/pci/devices/0000:01:00.4/driver_override
+      '
+    '';
+    RemainAfterExit = true;
+    CapabilityBoundingSet = [ "CAP_SYS_ADMIN" ];
+    AmbientCapabilities = [ "CAP_SYS_ADMIN" ];
+  };
+};
+
+
+/*   systemd.services.qat-sriov-vfs = {
+     description = "Create 4 SR-IOV VFs for Intel QAT";
+     wantedBy = [ "sysinit.target" ];
+     before = [ "sysinit.target" ];
+     after = [ "local-fs.target" ];
+  serviceConfig = {
+    Type = "oneshot";
+    ExecStart = ''/bin/sh -c 'echo 4 > /sys/bus/pci/devices/0000\:01\:00.0/sriov_numvfs' '';
+    RemainAfterExit = true;
+    CapabilityBoundingSet = [ "CAP_SYS_ADMIN" ];
+    AmbientCapabilities = [ "CAP_SYS_ADMIN" ];
+    PrivateDevices = false;
+    ProtectKernelModules = false;
+    ProtectControlGroups = false;
+    ProtectKernelTunables = false;
+    SystemCallFilter = [ "~write" ];
+  };
+};
+   systemd.services.qat-sriov-vfs = {
+     description = "Create 4 SR-IOV VFs for Intel QAT";
+     wantedBy = [ "multi-user.target" ];
+     serviceConfig = {
+       Type = "oneshot";
+       ExecStart = "/bin/sh -c 'echo 4 > /sys/bus/pci/devices/0000\:01\:00.0/sriov_totalvfs'";
+       RemainAfterExit = "yes";
+     };
+   };
+*/
+   services.tlp = {
+     enable = true;
+     settings = {
+       CPU_SCALING_GOVERNOR_ON_AC = "performance";
+       CPU_SCALING_GOVERNOR_ON_BAT = "performance"; # falls relevant
+     };
+   };
 
 
 # libvirt für Virtualisierung
