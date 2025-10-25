@@ -20,9 +20,9 @@
   };
 
   # ✅ Pflicht: GRUB-Ziel
-  boot.loader.grub.enable = true;
-  boot.loader.grub.devices = [ "/dev/nvme1n1" ];
-  boot.loader.systemd-boot.enable = false;
+  boot.loader.grub.enable = false;
+ # boot.loader.grub.devices = [ "/dev/nvme1n1" ];
+  boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Optional: stateVersion setzen
