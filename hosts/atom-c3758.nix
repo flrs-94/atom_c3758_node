@@ -37,7 +37,14 @@
       };
     };
 
-  services.cockpit.enable = true;
+  services.cockpit = {
+  enable = true;
+  settings = {
+    WebService = {
+      AllowUnencrypted = true;
+     };
+   };
+ };
 
 
   # Cockpit-Erweiterung für VM-Verwaltung
