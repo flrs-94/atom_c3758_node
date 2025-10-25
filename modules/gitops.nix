@@ -7,7 +7,7 @@
     after = [ "network-online.target" ];
     serviceConfig = {
       Type = "oneshot";
-      WorkingDirectory = "/home/markus/nixos-config";
+      WorkingDirectory = "/root/nixos-config";
       ExecStart = "${pkgs.git}/bin/git pull";
       ExecStartPost = "${pkgs.nixos-rebuild}/bin/nixos-rebuild switch";
     };
