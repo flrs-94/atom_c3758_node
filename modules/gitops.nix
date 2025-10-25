@@ -14,7 +14,7 @@
     };
   };
 
-  systemd.services.nixos-rebuild = {
+/*  systemd.services.nixos-rebuild = {
     description = "Rebuild and activate NixOS system";
     serviceConfig = {
       Type = "oneshot";
@@ -24,7 +24,8 @@
         nix build .#nixosConfigurations.atom-c3758.config.system.build.toplevel --out-link /root/nixos-config/result-system
         /root/nixos-config/result-system/bin/switch-to-configuration switch
       ''}";
-      Environment = "PATH=/run/current-system/sw/bin";
+      Environment = "PATH=/run/current-system/sw/bin";  
     };
+*/
   };
 }
