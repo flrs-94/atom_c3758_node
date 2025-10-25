@@ -6,6 +6,7 @@
   time.timeZone = "Europe/Berlin";
 
   # Firewall: SSH + Cockpit
+
   networking.firewall.allowedTCPPorts = [ 22 9090 ];
 
   # Benutzer & Gruppen
@@ -22,16 +23,25 @@
     git
     openssh
     cockpit
-    cockpit-machines
     virt-manager
+    gnutls
+    openssl
   ];
 
   # Dienste
-  services.openssh.enable = true;
+  services.openssh = {
+      enable = true;
+      settings = {
+	PermitRootLogin = "yes";
+	PasswordAuthentication = true;
+      };
+    };
+
   services.cockpit.enable = true;
 
+
   # Cockpit-Erweiterung für VM-Verwaltung
-  services.cockpit.packages = with pkgs; [ cockpit-machines ];
+ /* services.cockpit.packages = with pkgs; [ cockpit-machines ]; */
 
   # libvirt für Virtualisierung
   virtualisation.libvirtd = {
