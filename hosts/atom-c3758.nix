@@ -20,7 +20,11 @@
 
   # Systempakete
   environment.systemPackages = with pkgs; [
-    git
+    pciutils
+	ethtool
+	hwinfo
+    usbutils
+	git
     openssh
     cockpit
     virt-manager
