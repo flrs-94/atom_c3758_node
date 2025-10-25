@@ -18,10 +18,10 @@
 	"intel_qat"
 	"qat_c3xxx"
   ];
-# modprobe Optionen
-  environment.etc."modprobe.d/99-qat.conf".text = ''
-  options qat_c3xxx max_vfs=4
-  '';
+  systemd.tmpfiles.rules = [
+    "w /sys/bus/pci/devices/0000\:01\:00.0/sriov_numvfs - - - - 4"
+  ];
+
 # Hostname & Zeitzone
   networking.hostName = "atom-c3758";
   time.timeZone = "Europe/Berlin";
@@ -46,10 +46,10 @@
 
 # Systempakete
   environment.systemPackages = with pkgs; [
-
+	nix-prefetch
 	s-tui
 	qatlib
-	adf-tools
+#	adf-tools
 	htop
 	powertop	
 	pciutils
@@ -80,6 +80,16 @@
      };
    };
  };
+systemd.services.qat-sriov-vfs = {
+  description = "Create 4 SR-IOV VFs for Intel QAT";
+  wantedBy = [ "multi-user.target" ];
+  serviceConfig = {
+    Type = "oneshot";
+    ExecStart = "/bin/sh -c 'echo 4 > /sys/bus/pci/devices/0000\:01\:00.0/sriov_totalvfs'";
+    RemainAfterExit = "yes";
+  };
+};
+
 
 # libvirt für Virtualisierung
   virtualisation.libvirtd = {
