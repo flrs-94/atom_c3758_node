@@ -7,6 +7,7 @@
     after = [ "network-online.target" ];
     serviceConfig = {
       Type = "oneshot";
+      ExecStartPre = "${pkgs.coreutils}/bin/sleep 60";
       ExecStart = "/root/nixos-config/rebuild.sh";
       Environment = "PATH=/run/current-system/sw/bin";
     };
