@@ -9,7 +9,8 @@
       Type = "oneshot";
       WorkingDirectory = "/root/nixos-config";
       ExecStart = "${pkgs.git}/bin/git pull";
-      ExecStartPost = "${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake /root/nixos-config#atom-c3758";
+      ExecStartPost = "/nix/store/${config.system.build.toplevel}/bin/switch-to-configuration switch";
+#     ExecStartPost = "${pkgs.nixos-rebuild}/bin/nixos-rebuild switch --flake /root/nixos-config#atom-c3758";
       Environment = "PATH=/run/current-system/sw/bin";
     };
   };
