@@ -1,6 +1,189 @@
 { config, pkgs, ... }:
 
 {
+  # Systemversion
+  system.stateVersion = "25.11";
+
+  # Bootloader & EFI
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
+  # Kernelparameter für IOMMU & VFIO
+  boot.kernelParams = [
+    "intel_iommu=on"         # Aktiviert IOMMU für Intel-Plattformen
+    "iommu=pt"               # Passthrough-Modus für nicht-VFIO-Geräte
+    "intel_idle.max_cstate=0" # Optional: verhindert tiefe C-States
+    "processor.max_cstate=1"  # Optional: reduziert CPU-Schlafzustände
+    "vfio-pci.ids=8086:19e3"  # VFIO-Binding für QAT-VFs (nicht PF!)
+  ];
+
+  # Initrd: nur VFIO-Module laden
+  boot.initrd.kernelModules = [
+    "vfio"
+    "vfio_pci"
+    "vfio_iommu_type1"
+  ];
+
+  # Kernelmodule: VFIO + QAT PF-Treiber für VF-Erzeugung
+  boot.kernelModules = [
+    "vfio"
+    "vfio_pci"
+    "vfio_iommu_type1"
+    "intel_qat"
+    "qat_c3xxx"
+  ];
+
+  # Keine Blacklist nötig – PF-Treiber wird gebraucht
+  boot.blacklistedKernelModules = [ ];
+
+  # Hostname & Zeitzone
+  networking.hostName = "atom-c3758";
+  time.timeZone = "Europe/Berlin";
+
+  # Firewall: SSH + Cockpit
+  networking.firewall.allowedTCPPorts = [ 22 9090 ];
+
+  # Benutzer & Gruppen
+  users.users.root.openssh.authorizedKeys.keys = [
+    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC6U/3CxfLatxlEro9deroGI9L23kkMBELlRFO9BdkyKVrKlj0rWKmmSvMAN92yRgaV5hjG3Y5wm9FxWloxhIfZNxs9ca3ez0aegEjbFD+t4qS1so9zfsTuXkT9jsaCngC5QExe/UWU9/AgLR5CGxhMv/67YR+mz7LKs4j3uVkgwHuZY8iVtVUUiJBxEmvyO8zzlO4H1ORzD2RB7LY3phApZc0uNO1FgAQvyYOQOVVTHPGO8y2ad7O3XA/LBe60HGE/LVTwDfBO7FM6gcKau5WnM+jDMCdRz7ESuldDxMz1G33Tl57T9w8aAYn53vQfQWgdsoIBgDl7HZ+KxYNAHubmIG0SA4lXKT497EabJbAbiAm/TzC1gvcQjSg0PRAdrrn93+8dcdNCbAkxB+x7D+NHEgWeUbOY8IJaibsmwc4x19GFloLGOo4yWRP34FsLYs6VFQR+2o9AdI0P1u+NOXEdMPn1z2aKS6Wcp2u+KXCknx7n6PoLIzmYGnzGe7+mJvc= marku@ThinkPad-L390"
+  ];
+
+  users.users.flrs = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" "libvirtd" ];
+    openssh.authorizedKeys.keys = [
+      "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC6U/3CxfLatxlEro9deroGI9L23kkMBELlRFO9BdkyKVrKlj0rWKmmSvMAN92yRgaV5hjG3Y5wm9FxWloxhIfZNxs9ca3ez0aegEjbFD+t4qS1so9zfsTuXkT9jsaCngC5QExe/UWU9/AgLR5CGxhMv/67YR+mz7LKs4j3uVkgwHuZY8iVtVUUiJBxEmvyO8zzlO4H1ORzD2RB7LY3phApZc0uNO1FgAQvyYOQOVVTHPGO8y2ad7O3XA/LBe60HGE/LVTwDfBO7FM6gcKau5WnM+jDMCdRz7ESuldDxMz1G33Tl57T9w8aAYn53vQfQWgdsoIBgDl7HZ+KxYNAHubmIG0SA4lXKT497EabJbAbiAm/TzC1gvcQjSg0PRAdrrn93+8dcdNCbAkxB+x7D+NHEgWeUbOY8IJaibsmwc4x19GFloLGOo4yWRP34FsLYs6VFQR+2o9AdI0P1u+NOXEdMPn1z2aKS6Wcp2u+KXCknx7n6PoLIzmYGnzGe7+mJvc= marku@ThinkPad-L390"
+    ];
+  };
+
+  # Flake-Unterstützung
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
+  # Systempakete
+  environment.systemPackages = with pkgs; [
+    nix-prefetch
+    s-tui
+    qatlib
+    htop
+    powertop
+    pciutils
+    ethtool
+    hwinfo
+    usbutils
+    git
+    openssh
+    cockpit
+    virt-manager
+    gnutls
+    openssl
+  ];
+
+  # Dienste: SSH & Cockpit
+  services.openssh = {
+    enable = true;
+    settings = {
+      PermitRootLogin = "yes";
+    };
+  };
+
+  services.cockpit = {
+    enable = true;
+    port = 9090;
+    settings = {
+      WebService = {
+        AllowUnencrypted = true;
+      };
+    };
+  };
+
+  # SR-IOV VF-Erzeugung nach PF-Initialisierung
+  systemd.services.qat-sriov-vfs = {
+    description = "Create 4 SR-IOV VFs for Intel QAT";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "systemd-udevd.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = ''
+        /bin/sh -c '
+          for i in {1..10}; do
+            if [ -e /sys/bus/pci/devices/0000:01:00.0/sriov_totalvfs ]; then
+              echo 4 > /sys/bus/pci/devices/0000:01:00.0/sriov_numvfs && exit 0
+            fi
+            sleep 1
+          done
+          echo "QAT device not ready for SR-IOV" >&2
+          exit 1
+        '
+      '';
+      RemainAfterExit = true;
+      CapabilityBoundingSet = [ "CAP_SYS_ADMIN" ];
+      AmbientCapabilities = [ "CAP_SYS_ADMIN" ];
+      PrivateDevices = false;
+      ProtectKernelModules = false;
+      ProtectControlGroups = false;
+      ProtectKernelTunables = false;
+      SystemCallFilter = [ "~write" ];
+    };
+  };
+
+  # VF-Treiberbindung an vfio-pci
+  systemd.services.qat-bind-vfs = {
+    description = "Bind QAT VFs to vfio-pci";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "qat-sriov-vfs.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = ''
+        /bin/sh -c '
+          echo vfio-pci > /sys/bus/pci/devices/0000:01:00.1/driver_override
+          echo vfio-pci > /sys/bus/pci/devices/0000:01:00.2/driver_override
+          echo vfio-pci > /sys/bus/pci/devices/0000:01:00.3/driver_override
+          echo vfio-pci > /sys/bus/pci/devices/0000:01:00.4/driver_override
+        '
+      '';
+      RemainAfterExit = true;
+      CapabilityBoundingSet = [ "CAP_SYS_ADMIN" ];
+      AmbientCapabilities = [ "CAP_SYS_ADMIN" ];
+    };
+  };
+
+  # Energieverwaltung
+  services.tlp = {
+    enable = true;
+    settings = {
+      CPU_SCALING_GOVERNOR_ON_AC = "performance";
+      CPU_SCALING_GOVERNOR_ON_BAT = "performance";
+    };
+  };
+
+  # Libvirt für Virtualisierung
+  virtualisation.libvirtd = {
+    enable = true;
+    qemu.package = pkgs.qemu_kvm;
+  };
+
+  # Cockpit PAM-Konfiguration
+  security.pam.services.cockpit = {
+    allowNullPassword = false;
+    rootOK = true;
+  };
+
+  # Root-Dateisystem
+  fileSystems."/" = {
+    device = "/dev/nvme1n1p2";
+    fsType = "ext4";
+  };
+
+  # GitOps-Modul
+  imports = [
+    ./../modules/gitops.nix
+  ];
+}
+
+
+/*{ config, pkgs, ... }:
+
+{
 # Boot und Kernel Parameter
    system.stateVersion = "25.11";
    boot.loader.systemd-boot.enable = true;
