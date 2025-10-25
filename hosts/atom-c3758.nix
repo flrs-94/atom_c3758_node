@@ -12,4 +12,19 @@
   ];
 
   services.openssh.enable = true;
+
+  # ✅ Pflicht: Root-Dateisystem
+  fileSystems."/" = {
+    device = "/dev/nvme1n1p2";
+    fsType = "ext4"; # oder "btrfs", je nach Setup
+  };
+
+  # ✅ Pflicht: GRUB-Ziel
+  boot.loader.grub.enable = true;
+  boot.loader.grub.devices = [ "/dev/nvme1n1" ];
+  boot.loader.systemd-boot.enable = false;
+  boot.loader.efi.canTouchEfiVariables = true;
+
+  # Optional: stateVersion setzen
+#  system.stateVersion = "25.05";
 }
