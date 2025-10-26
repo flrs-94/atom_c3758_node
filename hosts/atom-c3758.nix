@@ -37,7 +37,8 @@
     "vfio_iommu_type1"
   ];
 
-  boot.extraModulePackages = [ pkgs.qat-sdk ];
+  # Using kernel in-tree QAT modules (avoid building out-of-tree modules here)
+  # boot.extraModulePackages = [ pkgs.qat-sdk ];
   boot.kernelModules = [
     "vfio"
     "vfio_pci"
@@ -86,7 +87,6 @@
   # - Virtualisierung
   #
   environment.systemPackages = with pkgs; [
-    qat-sdk
     nix-prefetch
     s-tui
     qatlib
