@@ -140,20 +140,18 @@ services.openssh = {
     ./../modules/gitops.nix
     ./../modules/vscode-server.nix
     ./../modules/cockpit.nix
+    ./../modules/qat-sriov.nix
   ];
 
   #
-  # Intel QAT SR-IOV Konfiguration (über qat-sriov Overlay)
+  # Intel QAT SR-IOV Konfiguration (via qat-sriov Modul)
+  # Erstellt 4 VFs: VF0+1 für Host (c3xxxvf), VF2+3 für VMs (vfio-pci)
   #
-  systemd.services.qat-setup = {
-    description = "Setup Intel QAT with SR-IOV (4 VFs: 2 Host, 2 VM)";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "systemd-modules-load.service" ];
-    path = [ pkgs.kmod pkgs.pciutils pkgs.coreutils ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${pkgs.qat-sriov-setup}/bin/qat-sriov-setup";
-    };
+  services.qat-sriov = {
+    enable = true;
+    pciAddress = "0000:01:00.0";
+    numVFs = 4;
+    hostVFs = [ 0 1 ];
+    vmVFs = [ 2 3 ];
   };
 }
