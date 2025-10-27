@@ -7,3 +7,6 @@ nix --extra-experimental-features 'nix-command flakes' build .#nixosConfiguratio
 
 # Activate directly, bypassing nixos-rebuild and systemd-run
 /root/nixos-config/result-system/bin/switch-to-configuration switch
+
+# Update boot entries automatically (neueste Generation als Default, letzte 3 behalten)
+/root/nixos-config/update-boot.sh
