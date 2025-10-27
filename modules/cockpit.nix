@@ -3,30 +3,18 @@
 {
   #
   # Cockpit Web-UI für VM/Container-Management
-  # Nutzt custom Cockpit-Pakete aus overlays/cockpit.nix
+  # Nutzt offizielles NixOS Cockpit-Paket (v349)
   #
 
-  # Cockpit systemd services (manuell definiert, da kein offizielles NixOS-Modul)
-  systemd.services.cockpit = {
-    description = "Cockpit Web Service";
-    wants = [ "cockpit.socket" ];
-    after = [ "cockpit.socket" ];
-    serviceConfig = {
-      ExecStart = "${pkgs.cockpit}/libexec/cockpit-ws --no-tls";
-      User = "root";
-      Group = "root";
-    };
-    environment = {
-      XDG_DATA_DIRS = "${pkgs.cockpit}/share:${pkgs.cockpit-machines}/share";
-    };
-  };
-
-  systemd.sockets.cockpit = {
-    description = "Cockpit Web Service Socket";
-    wantedBy = [ "sockets.target" ];
-    listenStreams = [ "9090" ];
-    socketConfig = {
-      Accept = false;
+  # Cockpit: offizielles services.cockpit Modul
+  services.cockpit = {
+    enable = true;
+    port = 9090;
+    settings = {
+      WebService = {
+        AllowUnencrypted = true;  # --no-tls
+        Origins = lib.mkForce "http://192.168.20.129:9090 http://localhost:9090 ws://192.168.20.129:9090 ws://localhost:9090";
+      };
     };
   };
 
@@ -42,6 +30,40 @@
     onShutdown = "shutdown";   # VMs sauber herunterfahren
   };
 
+  # libvirtd dauerhaft aktiv halten für Cockpit
+  systemd.services.libvirtd = {
+    wantedBy = [ "multi-user.target" ];
+  };
+
+  # D-Bus Policy/Service für libvirt (für Cockpit-Integration via libvirt-dbus)
+  services.dbus.packages = [ pkgs.libvirt-dbus ];
+
+  # Installiere systemd-Unit für DBus-Aktivierung (org.libvirt)
+  systemd.packages = [ pkgs.libvirt-dbus ];
+
+  # libvirt-dbus stabilisieren (keine DynamicUser, als root starten, auf dbus+libvirtd warten)
+  systemd.services.libvirt-dbus = {
+    after = [ "dbus.service" "libvirtd.service" ];
+    requires = [ "dbus.service" "libvirtd.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      DynamicUser = lib.mkForce false;
+      User = "root";
+      Group = "root";
+      # Vorherige ExecStart-Einträge entfernen und neu setzen
+      ExecStart = lib.mkForce [ "" "${pkgs.libvirt-dbus}/sbin/libvirt-dbus --system" ];
+    };
+  };
+
+  # Stelle DBus-Policy/Service-Dateien unter /etc bereit (NixOS liest diese Pfade zuverlässig)
+  environment.etc."dbus-1/system.d/org.libvirt.conf".source = "${pkgs.libvirt-dbus}/share/dbus-1/system.d/org.libvirt.conf";
+  environment.etc."dbus-1/system-services/org.libvirt.service".source = "${pkgs.libvirt-dbus}/share/dbus-1/system-services/org.libvirt.service";
+
+  # Dummy-Datei für cockpit-machines Condition
+  systemd.tmpfiles.rules = [
+    "f /usr/share/dbus-1/system.d/org.libvirt.conf 0644 root root - -"
+  ];
+
   # Container: Podman mit Docker-Kompatibilität
   virtualisation.podman = {
     enable = true;
@@ -55,26 +77,16 @@
 
   # Cockpit-Pakete und Tools
   environment.systemPackages = with pkgs; [
-    cockpit                    # Hauptpaket aus Overlay
-    cockpit-machines           # VM-Verwaltung (libvirt)
+    cockpit                    # Hauptpaket (v349 aus nixpkgs)
+    cockpit-machines           # VM-Verwaltung aus custom overlay
     virt-viewer                # VNC/SPICE Konsole
     libvirt                    # libvirt CLI tools
+    python3                    # Für Cockpit-Backend
+    python3Packages.libvirt    # Python-libvirt-Bindings
   ];
-
-  # PAM: Root-Login via Cockpit erlauben + Environment für Bridge
-  security.pam.services.cockpit = {
-    unixAuth = true;
-    rootOK = true;
-    # Verwende Standard-PAM-Stack statt custom text
-  };
 
   # Firewall: Cockpit Port + VNC Range
   networking.firewall.allowedTCPPorts = [ 9090 ] ++ (lib.range 5900 5910);
-
-  # Cockpit-Daten im System-Path verfügbar machen
-  environment.sessionVariables = {
-    XDG_DATA_DIRS = lib.mkAfter ":${pkgs.cockpit}/share:${pkgs.cockpit-machines}/share";
-  };
 
   # Admin-User für Cockpit Web-UI
   users.users.admin = {
