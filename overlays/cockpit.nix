@@ -81,6 +81,7 @@ self: super: {
       gettext
       nodejs
       python3
+      git
     ];
 
     buildInputs = [ self.cockpit ];
@@ -112,6 +113,7 @@ self: super: {
       gettext
       nodejs
       python3
+      git
     ];
 
     buildInputs = [ self.cockpit ];

@@ -6,13 +6,24 @@
   # Nutzt custom Cockpit-Pakete aus overlays/cockpit.nix
   #
 
-  services.cockpit = {
-    enable = true;
-    port = 9090;
-    settings = {
-      WebService = {
-        AllowUnencrypted = true;
-      };
+  # Cockpit systemd services (manuell definiert, da kein offizielles NixOS-Modul)
+  systemd.services.cockpit = {
+    description = "Cockpit Web Service";
+    wants = [ "cockpit.socket" ];
+    after = [ "cockpit.socket" ];
+    serviceConfig = {
+      ExecStart = "${pkgs.cockpit}/libexec/cockpit-ws --no-tls";
+      User = "root";
+      Group = "root";
+    };
+  };
+
+  systemd.sockets.cockpit = {
+    description = "Cockpit Web Service Socket";
+    wantedBy = [ "sockets.target" ];
+    listenStreams = [ "9090" ];
+    socketConfig = {
+      Accept = false;
     };
   };
 
@@ -42,9 +53,10 @@
   # Cockpit-Pakete und Tools
   environment.systemPackages = with pkgs; [
     cockpit                    # Hauptpaket aus Overlay
-    cockpit-machines           # libvirt/KVM UI
-    cockpit-podman             # Podman/Container UI
+    # cockpit-machines         # TODO: Fix git-dependency in Makefile
+    # cockpit-podman           # TODO: Fix git-dependency in Makefile
     virt-viewer                # VNC/SPICE Konsole
+    libvirt                    # libvirt CLI tools
   ];
 
   # PAM: Root-Login via Cockpit erlauben
@@ -52,6 +64,9 @@
     unixAuth = true;
     rootOK = true;
   };
+
+  # Firewall: Cockpit Port + VNC Range
+  networking.firewall.allowedTCPPorts = [ 9090 ] ++ (lib.range 5900 5910);
 
   # Admin-User für Cockpit Web-UI
   users.users.admin = {
