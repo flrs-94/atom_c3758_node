@@ -13,6 +13,8 @@ self: super: {
       pkg-config
       gettext
       python3
+      python3.pkgs.pip
+      python3.pkgs.build
       libxslt
       xmlto
       docbook_xsl
@@ -46,6 +48,9 @@ self: super: {
     preConfigure = ''
       # dist/ ist bereits im Tarball vorhanden
       export NODE_ENV=production
+      
+      # Patch hardcoded Python paths in build scripts
+      patchShebangs tools/
     '';
 
     postInstall = ''
