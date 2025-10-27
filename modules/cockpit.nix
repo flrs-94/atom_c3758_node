@@ -65,11 +65,7 @@
   security.pam.services.cockpit = {
     unixAuth = true;
     rootOK = true;
-    text = ''
-      session optional ${pkgs.pam}/lib/security/pam_env.so conffile=${pkgs.writeText "cockpit-env" ''
-        XDG_DATA_DIRS DEFAULT=${pkgs.cockpit}/share:@{HOME}/.local/share:/usr/local/share:/usr/share
-      ''} readenv=1
-    '';
+    # Verwende Standard-PAM-Stack statt custom text
   };
 
   # Firewall: Cockpit Port + VNC Range
