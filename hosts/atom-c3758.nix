@@ -87,6 +87,7 @@
   # - Virtualisierung
   #
   environment.systemPackages = with pkgs; [
+    gcc
     nix-prefetch
     s-tui
     qatlib
@@ -101,8 +102,14 @@
     cockpit
     virt-manager
     gnutls
+    curl
+    bash
+    gnugrep
+    coreutils
+    glibc
     openssl
   ];
+
 
   #
   # System Dienste
@@ -220,5 +227,6 @@
   #
   imports = [
     ./../modules/gitops.nix
+    ./../modules/vscode-server.nix
   ];
 }
