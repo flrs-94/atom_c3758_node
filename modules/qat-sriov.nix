@@ -19,7 +19,14 @@ in
     numVFs = mkOption {
       type = types.int;
       default = 4;
-      description = "Number of Virtual Functions (VFs) to create";
+      description = ''
+        Number of Virtual Functions (VFs) to create.
+        
+        Note: Intel QAT C3xxx hardware creates 16 VFs when SR-IOV is enabled,
+        regardless of the numVFs setting. This option controls how many VFs
+        are configured for use (hostVFs + vmVFs should not exceed this number).
+        The remaining VFs will be created but left unbound.
+      '';
     };
 
     hostVFs = mkOption {
@@ -91,15 +98,24 @@ in
         PF_DRV=$(readlink /sys/bus/pci/devices/$PF/driver 2>/dev/null | xargs basename 2>/dev/null || echo "none")
         echo "[QAT SR-IOV] PF driver: $PF_DRV"
         
-        # 4. Erstelle VFs
-        echo "[QAT SR-IOV] Creating ${toString cfg.numVFs} VFs..."
+        # 4. Erstelle VFs deterministisch (erst deaktivieren, dann aktivieren)
+        echo "[QAT SR-IOV] Resetting VFs to 0..."
         echo 0 > /sys/bus/pci/devices/$PF/sriov_numvfs 2>/dev/null || true
-        sleep 1
-        echo ${toString cfg.numVFs} > /sys/bus/pci/devices/$PF/sriov_numvfs
         sleep 2
+        
+        echo "[QAT SR-IOV] Creating ${toString cfg.numVFs} VFs..."
+        echo ${toString cfg.numVFs} > /sys/bus/pci/devices/$PF/sriov_numvfs
+        sleep 3
         
         VF_COUNT=$(cat /sys/bus/pci/devices/$PF/sriov_numvfs)
         echo "[QAT SR-IOV] VFs created: $VF_COUNT"
+        
+        # Note: Intel QAT C3xxx creates 16 VFs in hardware regardless of numVFs setting
+        # We configure only the specified number (hostVFs + vmVFs)
+        if [ "$VF_COUNT" != "${toString cfg.numVFs}" ]; then
+          echo "[QAT SR-IOV] Note: Hardware created $VF_COUNT VFs (expected ${toString cfg.numVFs})"
+          echo "[QAT SR-IOV]       This is normal for QAT C3xxx - only configured VFs will be bound to drivers"
+        fi
         
         ${optionalString (cfg.hostVFs != []) ''
         # 5. Binde Host-VFs an c3xxxvf
@@ -110,14 +126,25 @@ in
             continue
           fi
           vf_addr=$(basename $(readlink -f $vf_path))
+          
+          # Unbind von vorherigem Treiber falls vorhanden
+          if [ -e "/sys/bus/pci/devices/$vf_addr/driver" ]; then
+            old_drv=$(readlink /sys/bus/pci/devices/$vf_addr/driver | xargs basename)
+            if [ "$old_drv" != "c3xxxvf" ]; then
+              echo "[QAT SR-IOV] VF$i ($vf_addr): Unbinding from $old_drv..."
+              echo "$vf_addr" > /sys/bus/pci/devices/$vf_addr/driver/unbind 2>/dev/null || true
+              sleep 0.5
+            fi
+          fi
+          
           echo "[QAT SR-IOV] Binding VF$i ($vf_addr) to c3xxxvf (Host)..."
-          echo "c3xxxvf" > $vf_path/driver_override
+          echo "c3xxxvf" > /sys/bus/pci/devices/$vf_addr/driver_override
           echo "$vf_addr" > /sys/bus/pci/drivers/c3xxxvf/bind 2>/dev/null || echo "[QAT SR-IOV]   -> already bound"
         done
         ''}
         
         ${optionalString (cfg.vmVFs != []) ''
-        # 6. Binde VM-VFs an vfio-pci
+        # 6. Binde VM-VFs an vfio-pci (mit force unbind)
         for i in ${concatStringsSep " " (map toString cfg.vmVFs)}; do
           vf_path="/sys/bus/pci/devices/$PF/virtfn$i"
           if [ ! -e "$vf_path" ]; then
@@ -125,9 +152,32 @@ in
             continue
           fi
           vf_addr=$(basename $(readlink -f $vf_path))
+          
+          # Force unbind von vorherigem Treiber falls vorhanden
+          if [ -e "/sys/bus/pci/devices/$vf_addr/driver" ]; then
+            old_drv=$(readlink /sys/bus/pci/devices/$vf_addr/driver | xargs basename)
+            echo "[QAT SR-IOV] VF$i ($vf_addr): Unbinding from $old_drv..."
+            echo "$vf_addr" > /sys/bus/pci/devices/$vf_addr/driver/unbind 2>/dev/null || true
+            sleep 0.5
+          fi
+          
           echo "[QAT SR-IOV] Binding VF$i ($vf_addr) to vfio-pci (VM)..."
-          echo "vfio-pci" > $vf_path/driver_override
-          echo "$vf_addr" > /sys/bus/pci/drivers/vfio-pci/bind 2>/dev/null || echo "[QAT SR-IOV]   -> already bound"
+          echo "vfio-pci" > /sys/bus/pci/devices/$vf_addr/driver_override
+          
+          # Retry-Logik für vfio-pci bind (manchmal braucht es mehrere Versuche)
+          for attempt in {1..3}; do
+            if echo "$vf_addr" > /sys/bus/pci/drivers/vfio-pci/bind 2>/dev/null; then
+              echo "[QAT SR-IOV]   -> bound successfully"
+              break
+            else
+              if [ $attempt -lt 3 ]; then
+                echo "[QAT SR-IOV]   -> bind attempt $attempt failed, retrying..."
+                sleep 1
+              else
+                echo "[QAT SR-IOV]   -> ERROR: bind failed after 3 attempts"
+              fi
+            fi
+          done
         done
         ''}
         
