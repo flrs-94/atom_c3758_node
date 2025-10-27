@@ -30,6 +30,7 @@
             (import ./overlays/qatlib.nix)
             (import ./overlays/qat-sdk.nix)
             (import ./overlays/qat-firmware.nix)
+            (import ./overlays/qat-sriov.nix)
             (import ./overlays/cockpit.nix)
           ];
         };

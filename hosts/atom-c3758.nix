@@ -143,89 +143,17 @@ services.openssh = {
   ];
 
   #
-  # Intel QAT SR-IOV Konfiguration (systemd qat-setup Unit, garantiert im config-Set)
+  # Intel QAT SR-IOV Konfiguration (über qat-sriov Overlay)
   #
   systemd.services.qat-setup = {
-    description = "Setup Intel QAT with SR-IOV";
+    description = "Setup Intel QAT with SR-IOV (4 VFs: 2 Host, 2 VM)";
     wantedBy = [ "multi-user.target" ];
     after = [ "systemd-modules-load.service" ];
-    path = [ pkgs.kmod pkgs.pciutils ];
-    script = ''
-      sleep 2
-      
-      # Bind PF to c3xxx driver first
-      if [ ! -e /sys/bus/pci/devices/0000:01:00.0/driver ]; then
-        echo "Binding PF to c3xxx driver..."
-        echo 0000:01:00.0 > /sys/bus/pci/drivers/c3xxx/bind || true
-        sleep 2
-      fi
-      
-      # Enable PCI bus mastering
-      setpci -s 01:00.0 COMMAND=0x06
-      
-      # Create VFs and bind them using virtfn symlinks (die VF-BDFs sind nicht 01:00.x)
-      for i in $(seq 1 15); do
-        PF=/sys/bus/pci/devices/0000:01:00.0
-        if [ -e "$PF/sriov_numvfs" ]; then
-          # Deaktivieren, dann Wunschzahl setzen (Kernel kann auf max. VFs runden)
-          echo 0 > "$PF/sriov_numvfs" || true
-          sleep 1
-          echo 4 > "$PF/sriov_numvfs" || true
-          sleep 2
-
-          # Autoprobe aus, wir binden gezielt
-          if [ -w "$PF/sriov_drivers_autoprobe" ]; then
-            echo 0 > "$PF/sriov_drivers_autoprobe" || true
-          fi
-
-          # Sammle die ersten 4 VF-Pfade aus virtfn{0..3}
-          VF0=$(readlink -f "$PF/virtfn0") || true
-          VF1=$(readlink -f "$PF/virtfn1") || true
-          VF2=$(readlink -f "$PF/virtfn2") || true
-          VF3=$(readlink -f "$PF/virtfn3") || true
-
-          for vf in "$VF0" "$VF1" "$VF2" "$VF3"; do
-            [ -n "$vf" ] || continue
-            # Setze gezielt die gewünschte Treiberbindung
-            case "$vf" in
-              "$VF0"|"$VF1") echo c3xxxvf > "$vf/driver_override" ;;   # Host
-              "$VF2"|"$VF3") echo vfio-pci > "$vf/driver_override" ;; # VM Passthrough
-            esac
-            # ggf. bestehenden Treiber lösen
-            if [ -e "$vf/driver" ]; then
-              echo "$(basename "$vf")" > "$vf/driver/unbind" || true
-            fi
-          done
-
-          # Treiber binden: Host-VFs an c3xxxvf, VM-VFs an vfio-pci
-          for bdf in $(basename "$VF0") $(basename "$VF1"); do
-            [ -n "$bdf" ] || continue
-            echo "$bdf" > /sys/bus/pci/drivers/c3xxxvf/bind || true
-          done
-          for bdf in $(basename "$VF2") $(basename "$VF3"); do
-            [ -n "$bdf" ] || continue
-            echo "$bdf" > /sys/bus/pci/drivers/vfio-pci/bind || true
-          done
-
-          # Debug-Ausgabe
-          for vf in "$VF0" "$VF1" "$VF2" "$VF3"; do
-            [ -n "$vf" ] || continue
-            drv="-"; [ -e "$vf/driver" ] && drv=$(basename "$(readlink "$vf/driver")")
-            echo "$(basename "$vf") -> driver=$drv override=$(cat "$vf/driver_override")"
-          done
-
-          exit 0
-        fi
-        sleep 1
-      done
-      echo "QAT device not ready" >&2
-      exit 1
-    '';
+    path = [ pkgs.kmod pkgs.pciutils pkgs.coreutils ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      CapabilityBoundingSet = "CAP_SYS_ADMIN";
-      AmbientCapabilities = "CAP_SYS_ADMIN";
+      ExecStart = "${pkgs.qat-sriov-setup}/bin/qat-sriov-setup";
     };
   };
 }
