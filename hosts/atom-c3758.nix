@@ -49,6 +49,13 @@ services.openssh = {
   system.stateVersion = "25.11";
 
   #
+  # CPU Governor: Performance-Modus (CPU-Frequenz immer auf Maximum)
+  # - Verhindert Frequency Scaling für niedrigere Latenz
+  # - Optimiert für Durchsatz statt Energieeffizienz
+  #
+  powerManagement.cpuFreqGovernor = "performance";
+
+  #
   # Boot und UEFI Konfiguration
   #
   boot.loader.systemd-boot.enable = true;
