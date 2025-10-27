@@ -16,6 +16,9 @@
       User = "root";
       Group = "root";
     };
+    environment = {
+      XDG_DATA_DIRS = "${pkgs.cockpit}/share";
+    };
   };
 
   systemd.sockets.cockpit = {
@@ -59,14 +62,24 @@
     libvirt                    # libvirt CLI tools
   ];
 
-  # PAM: Root-Login via Cockpit erlauben
+  # PAM: Root-Login via Cockpit erlauben + Environment für Bridge
   security.pam.services.cockpit = {
     unixAuth = true;
     rootOK = true;
+    text = ''
+      session optional ${pkgs.pam}/lib/security/pam_env.so conffile=${pkgs.writeText "cockpit-env" ''
+        XDG_DATA_DIRS DEFAULT=${pkgs.cockpit}/share:@{HOME}/.local/share:/usr/local/share:/usr/share
+      ''} readenv=1
+    '';
   };
 
   # Firewall: Cockpit Port + VNC Range
   networking.firewall.allowedTCPPorts = [ 9090 ] ++ (lib.range 5900 5910);
+
+  # Cockpit-Daten im System-Path verfügbar machen
+  environment.sessionVariables = {
+    XDG_DATA_DIRS = lib.mkAfter ":${pkgs.cockpit}/share";
+  };
 
   # Admin-User für Cockpit Web-UI
   users.users.admin = {
