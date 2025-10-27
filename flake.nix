@@ -31,6 +31,7 @@
             (import ./overlays/qat-sdk.nix)
             (import ./overlays/qat-firmware.nix)
             (import ./overlays/cockpit.nix)
+            (import ./overlays/cockpit-machines.nix)
           ];
         };
         modules = [

@@ -17,7 +17,7 @@
       Group = "root";
     };
     environment = {
-      XDG_DATA_DIRS = "${pkgs.cockpit}/share";
+      XDG_DATA_DIRS = "${pkgs.cockpit}/share:${pkgs.cockpit-machines}/share";
     };
   };
 
@@ -56,8 +56,7 @@
   # Cockpit-Pakete und Tools
   environment.systemPackages = with pkgs; [
     cockpit                    # Hauptpaket aus Overlay
-    # cockpit-machines         # TODO: Fix git-dependency in Makefile
-    # cockpit-podman           # TODO: Fix git-dependency in Makefile
+    cockpit-machines           # VM-Verwaltung (libvirt)
     virt-viewer                # VNC/SPICE Konsole
     libvirt                    # libvirt CLI tools
   ];
@@ -78,7 +77,7 @@
 
   # Cockpit-Daten im System-Path verfügbar machen
   environment.sessionVariables = {
-    XDG_DATA_DIRS = lib.mkAfter ":${pkgs.cockpit}/share";
+    XDG_DATA_DIRS = lib.mkAfter ":${pkgs.cockpit}/share:${pkgs.cockpit-machines}/share";
   };
 
   # Admin-User für Cockpit Web-UI
