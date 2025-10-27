@@ -72,7 +72,12 @@
   #
   networking.hostName = "atom-c3758";
   time.timeZone = "Europe/Berlin";
-  networking.firewall.allowedTCPPorts = [ 22 9090 ];
+  
+  # Firewall: SSH, Cockpit und VNC
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [ 22 9090 ] ++ (pkgs.lib.range 5900 5910);
+  };
 
   # Journald klein halten, damit / nicht vollläuft
   services.journald.extraConfig = ''
@@ -80,23 +85,6 @@
     RuntimeMaxUse=64M
     MaxFileSec=1day
   '';
-
-
-  #
-  # Virtualisierung und KVM
-  #
-  virtualisation.libvirtd = {
-    enable = true;
-    qemu.package = pkgs.qemu_kvm;
-  };
-
-  #
-  # System Sicherheit
-  #
-  security.pam.services.cockpit = {
-    allowNullPassword = false;
-    rootOK = true;
-  };
 
   #
   # Dateisystem und Storage
@@ -107,11 +95,12 @@
   };
 
   #
-  # GitOps Integration
+  # GitOps Integration und Management
   #
   imports = [
     ./../modules/gitops.nix
     ./../modules/vscode-server.nix
+    ./../modules/cockpit.nix
   ];
 
   #
